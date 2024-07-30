@@ -1,5 +1,22 @@
-## backend
-j/
+
+
+# Ignore node_modules
+node_modules/
+
+# Ignore environment variables
+.env
+
+# Ignore build outputs
+dist/
+build/
+
+# Ignore large files
+public/assets/video*.mp4
+
+# Ignore Docker files
+docker-compose.yml
+Dockerfile
+
 
 ## poetry artifacts
 poetry.lock
