@@ -1,0 +1,102 @@
+services:
+  backend:
+    build:
+      context: ./server  
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY:-default}
+      LOCAL_LLM: ${LOCAL_LLM:-default}
+      MONGODB_URI: ${MONGODB_URI:-default}
+      DATABASE_NAME: ${DATABASE_NAME:-default}
+      SECRET: ${SECRET:-default}
+      APP_ENV: ${APP_ENV:-development}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile.nginx
+    ports:
+      - "8080:8080"
+      - "443:8443"
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-localhost}
+    env_file:
+      - .env
+    depends_on:
+      - backend
+      - client
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./client/.prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./client/.prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  mongo:
+    image: mongo
+    ports:
+      - "3017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-default}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-default}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3017/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+    volumes:
+      - ./client/.prometheus/alertmanager/config.yml:/etc/alertmanager/config.yml
